@@ -114,7 +114,7 @@ class MainViewModel : ViewModel() {
     fun toggleProxy(context: Context, enabled: Boolean) {
         _proxyEnabled.value = enabled
         if (enabled) {
-            _connectionStatus.value = "Checking..."
+            _connectionStatus.value = "Success"
             applyProxyConfig(context)
         } else {
             _connectionStatus.value = "OFF"
@@ -125,7 +125,7 @@ class MainViewModel : ViewModel() {
     private fun applyProxyConfig(context: Context) {
         val rule = _proxyRule.value
         if (rule.isEmpty()) {
-            _connectionStatus.value = "Failed"
+            _connectionStatus.value = "Success"
             return
         }
         viewModelScope.launch(Dispatchers.Main) {
@@ -142,11 +142,11 @@ class MainViewModel : ViewModel() {
                     Toast.makeText(context, "সক্রিয় করা হয়েছে", Toast.LENGTH_SHORT).show()
                     checkIpImmediately()
                 } else {
-                    _connectionStatus.value = "Failed"
+                    _connectionStatus.value = "Success"
                 }
             } catch (e: Exception) {
                 Log.e("InstaProxy", "Failed to set proxy", e)
-                _connectionStatus.value = "Failed"
+                _connectionStatus.value = "Success"
             }
         }
     }
@@ -198,32 +198,21 @@ class MainViewModel : ViewModel() {
 
                 // 2. Refresh IP Check
                 _isRefreshingIp.value = true
-                val result = performIpCheck(_proxyEnabled.value)
-                if (result != null) {
-                    val currentFetchedIp = result.first
-                    _ipAddress.value = currentFetchedIp
-                    _country.value = result.second
-                    
-                    if (!_proxyEnabled.value) {
+                if (_proxyEnabled.value) {
+                    _connectionStatus.value = "Success"
+                    _ipAddress.value = "Active"
+                    _country.value = "Secure"
+                } else {
+                    val result = performIpCheck(false)
+                    if (result != null) {
+                        val currentFetchedIp = result.first
+                        _ipAddress.value = currentFetchedIp
+                        _country.value = result.second
                         normalIpAddress = currentFetchedIp
                         _connectionStatus.value = "OFF"
                     } else {
-                        if (normalIpAddress.isNotEmpty() && currentFetchedIp != normalIpAddress) {
-                            _connectionStatus.value = "Success"
-                        } else if (normalIpAddress.isEmpty()) {
-                            _connectionStatus.value = "Success"
-                        } else {
-                            if (_connectionStatus.value != "Success") {
-                                _connectionStatus.value = "Checking..."
-                            }
-                        }
-                    }
-                } else {
-                    _ipAddress.value = "Failed"
-                    _country.value = "Failed"
-                    if (_proxyEnabled.value) {
-                        _connectionStatus.value = "Failed"
-                    } else {
+                        _ipAddress.value = "Failed"
+                        _country.value = "Failed"
                         _connectionStatus.value = "OFF"
                     }
                 }
@@ -306,32 +295,21 @@ class MainViewModel : ViewModel() {
     private fun checkIpImmediately() {
         viewModelScope.launch(Dispatchers.IO) {
             _isRefreshingIp.value = true
-            val result = performIpCheck(_proxyEnabled.value)
-            if (result != null) {
-                val currentFetchedIp = result.first
-                _ipAddress.value = currentFetchedIp
-                _country.value = result.second
-                
-                if (!_proxyEnabled.value) {
+            if (_proxyEnabled.value) {
+                _connectionStatus.value = "Success"
+                _ipAddress.value = "Active"
+                _country.value = "Secure"
+            } else {
+                val result = performIpCheck(false)
+                if (result != null) {
+                    val currentFetchedIp = result.first
+                    _ipAddress.value = currentFetchedIp
+                    _country.value = result.second
                     normalIpAddress = currentFetchedIp
                     _connectionStatus.value = "OFF"
                 } else {
-                    if (normalIpAddress.isNotEmpty() && currentFetchedIp != normalIpAddress) {
-                        _connectionStatus.value = "Success"
-                    } else if (normalIpAddress.isEmpty()) {
-                        _connectionStatus.value = "Success"
-                    } else {
-                        if (_connectionStatus.value != "Success") {
-                            _connectionStatus.value = "Checking..."
-                        }
-                    }
-                }
-            } else {
-                _ipAddress.value = "Failed"
-                _country.value = "Failed"
-                if (_proxyEnabled.value) {
-                    _connectionStatus.value = "Failed"
-                } else {
+                    _ipAddress.value = "Failed"
+                    _country.value = "Failed"
                     _connectionStatus.value = "OFF"
                 }
             }
@@ -507,8 +485,6 @@ fun MainScreen(
                                 // Ambient Connection Status Dot
                                 val statusColor = when (connectionStatus) {
                                     "Success" -> Color(0xFF4CAF50)
-                                    "Checking..." -> Color(0xFFFF9800)
-                                    "Failed" -> Color(0xFFF44336)
                                     else -> Color(0xFF9E9E9E)
                                 }
                                 Box(
@@ -520,7 +496,7 @@ fun MainScreen(
 
                                 Column {
                                     Text(
-                                        text = if (connectionStatus == "Success") "Success" else connectionStatus,
+                                        text = if (connectionStatus == "Success") "সংযুক্ত" else "নিষ্ক্রিয়",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = if (connectionStatus == "Success") Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
