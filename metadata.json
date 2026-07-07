@@ -1,0 +1,6 @@
+{
+  "name": "InstaHub",
+  "description": "A high-performance Android WebView client for Instagram access, featuring cookie extraction and dynamic IP tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
