@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -858,6 +859,8 @@ fun MainScreen(
 
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
 
+
+
     Box(modifier = modifier.fillMaxSize()) {
         if (appStatus == "OFF") {
             MaintenanceNoticeScreen()
@@ -868,7 +871,7 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     // App Identity and Proxy ON/OFF Switch
                     Row(
@@ -878,31 +881,24 @@ fun MainScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            InstagramLogo(size = 36.dp)
-                            Column {
-                                Text(
-                                    text = "InstaHub",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Instagram WebView Hub",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                            }
+                            InstagramLogo(size = 24.dp)
+                            Text(
+                                text = "InstaHub",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 text = if (proxyEnabled) "ON" else "OFF",
-                                style = MaterialTheme.typography.labelLarge,
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = if (proxyEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                             )
@@ -915,23 +911,23 @@ fun MainScreen(
                                     uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                                     uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                                 ),
-                                modifier = Modifier.testTag("proxy_toggle_switch")
+                                modifier = Modifier
+                                    .scale(0.8f)
+                                    .testTag("proxy_toggle_switch")
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     // Live Range Instagram Section
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(vertical = 2.dp)
                     ) {
-                        InstagramLogo(size = 18.dp)
+                        InstagramLogo(size = 14.dp)
                         Text(
                             text = "Live Range Instagram",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
@@ -940,17 +936,17 @@ fun MainScreen(
                     if (liveRanges.isEmpty()) {
                         Text(
                             text = "No range",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            modifier = Modifier.padding(vertical = 2.dp)
                         )
                     } else {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             liveRanges.forEach { range ->
@@ -959,7 +955,7 @@ fun MainScreen(
                                     label = { 
                                         Text(
                                             text = range,
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
                                         ) 
                                     },
@@ -967,13 +963,74 @@ fun MainScreen(
                                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                                         labelColor = MaterialTheme.colorScheme.onPrimaryContainer
                                     ),
-                                    shape = RoundedCornerShape(16.dp)
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.height(26.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // Manual Range Input Row
+                    var manualRangeText by remember { mutableStateOf("") }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(30.dp)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(6.dp)
+                               )
+                               .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(6.dp))
+                               .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (manualRangeText.isEmpty()) {
+                                Text(
+                                    text = "ম্যানুয়াল Range বসান (যেমন: 225015)",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = manualRangeText,
+                                onValueChange = { manualRangeText = it },
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        
+                        Button(
+                            onClick = {
+                                if (manualRangeText.isNotBlank()) {
+                                    viewModel.fetchNumberForRange(context, manualRangeText)
+                                } else {
+                                    Toast.makeText(context, "অনুগ্রহ করে Range লিখুন", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text(text = "Get Number", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
                     // Dynamic IP, Connection & OTP Info Card
                     Card(
@@ -981,13 +1038,13 @@ fun MainScreen(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             // Row 1: Connection Status & Refresh/Fetching Indicator
                             Row(
@@ -997,34 +1054,32 @@ fun MainScreen(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    // Ambient Connection Status Dot
                                     val statusColor = when (connectionStatus) {
                                         "Success" -> Color(0xFF4CAF50)
                                         else -> Color(0xFF9E9E9E)
                                     }
                                     Box(
                                         modifier = Modifier
-                                            .size(10.dp)
+                                            .size(8.dp)
                                             .clip(CircleShape)
                                             .background(statusColor)
                                     )
 
-                                    Column {
-                                        Text(
-                                            text = if (connectionStatus == "Success") "Connect" else "নিষ্ক্রিয়",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (connectionStatus == "Success") Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
+                                    Text(
+                                        text = if (connectionStatus == "Success") "Connect" else "নিষ্ক্রিয়",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (connectionStatus == "Success") Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 11.sp
+                                    )
                                 }
 
                                 if (isRefreshingIp || isFetchingNumber) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(12.dp),
+                                        strokeWidth = 1.5.dp,
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 } else {
@@ -1032,23 +1087,23 @@ fun MainScreen(
                                         imageVector = Icons.Default.Language,
                                         contentDescription = "Connection Type Indicator",
                                         tint = if (proxyEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
                                 }
                             }
 
                             // OTP & Active Number Info
                             if (currentNumber != null || isFetchingNumber || otpStatus != "No active number") {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 
                                 Spacer(
                                     modifier = Modifier
-                                        .height(1.dp)
+                                        .height(0.5.dp)
                                         .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                                 )
                                 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -1058,18 +1113,20 @@ fun MainScreen(
                                     Column(modifier = Modifier.weight(1.2f)) {
                                         Text(
                                             text = "Active Number",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontSize = 9.sp
                                         )
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
                                             Text(
                                                 text = currentNumber ?: "Fetching...",
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 11.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -1081,13 +1138,13 @@ fun MainScreen(
                                                         clipboard.setPrimaryClip(clip)
                                                         Toast.makeText(context, "Number copied", Toast.LENGTH_SHORT).show()
                                                     },
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = Modifier.size(20.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.ContentCopy,
                                                         contentDescription = "Copy number",
                                                         tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(14.dp)
+                                                        modifier = Modifier.size(11.dp)
                                                     )
                                                 }
                                             }
@@ -1100,19 +1157,21 @@ fun MainScreen(
                                     ) {
                                         Text(
                                             text = "OTP Status",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontSize = 9.sp
                                         )
                                         if (currentOtp != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
                                             ) {
                                                 Text(
                                                     text = currentOtp ?: "",
-                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    style = MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.Black,
                                                     color = Color(0xFF4CAF50),
+                                                    fontSize = 12.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -1123,22 +1182,23 @@ fun MainScreen(
                                                         clipboard.setPrimaryClip(clip)
                                                         Toast.makeText(context, "OTP copied", Toast.LENGTH_SHORT).show()
                                                     },
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = Modifier.size(20.dp)
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.ContentCopy,
                                                         contentDescription = "Copy OTP",
                                                         tint = Color(0xFF4CAF50),
-                                                        modifier = Modifier.size(14.dp)
+                                                        modifier = Modifier.size(11.dp)
                                                     )
                                                 }
                                             }
                                         } else {
                                             Text(
                                                 text = otpStatus,
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (otpStatus.contains("Waiting")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 11.sp,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -1149,12 +1209,10 @@ fun MainScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     // Action Command Buttons Row (Clear Data, Copy Cookies, OTP History)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Clear Data Button
                         Button(
@@ -1178,22 +1236,22 @@ fun MainScreen(
                                 containerColor = MaterialTheme.colorScheme.error,
                                 contentColor = MaterialTheme.colorScheme.onError
                             ),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp)
+                                .height(30.dp)
                                 .testTag("clear_data_button"),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteSweep,
                                 contentDescription = "Clear Cache Icon",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(14.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
                                 text = "ক্লিয়ার",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1217,22 +1275,22 @@ fun MainScreen(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp)
+                                .height(30.dp)
                                 .testTag("copy_cookies_button"),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
                                 contentDescription = "Copy Cookies Icon",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(14.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
                                 text = "কুকিজ",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1248,22 +1306,22 @@ fun MainScreen(
                                 containerColor = MaterialTheme.colorScheme.secondary,
                                 contentColor = MaterialTheme.colorScheme.onSecondary
                             ),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             modifier = Modifier
                                 .weight(1.2f)
-                                .height(42.dp)
+                                .height(30.dp)
                                 .testTag("otp_history_button"),
                             contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.History,
                                 contentDescription = "History Icon",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(14.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             Text(
                                 text = "Otp History",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
