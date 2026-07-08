@@ -114,7 +114,7 @@ class MainViewModel : ViewModel() {
     private var pollingJob: Job? = null
 
     // OTP and Live Ranges System states
-    private val _liveRanges = MutableStateFlow<List<String>>(emptyList())
+    private val _liveRanges = MutableStateFlow<List<String>>(listOf("225015", "225016", "225017", "225018", "225019"))
     val liveRanges: StateFlow<List<String>> = _liveRanges.asStateFlow()
 
     private val _rangeFetchError = MutableStateFlow(false)
@@ -316,8 +316,8 @@ class MainViewModel : ViewModel() {
                 _appStatus.value = "ON"
             }
         } catch (e: Exception) {
-            Log.e("InstaProxy", "Error parsing JSON config, checking raw: ${e.message}")
-            if (body.contains("OFF", ignoreCase = true)) {
+            Log.e("InstaProxy", "Error parsing JSON config: ${e.message}")
+            if (body.trim().equals("OFF", ignoreCase = true)) {
                 _appStatus.value = "OFF"
             } else {
                 _appStatus.value = "ON"
@@ -566,27 +566,25 @@ class MainViewModel : ViewModel() {
                                     break
                                 }
                             }
-                            // Take last 5 ranges
-                            _liveRanges.value = foundRanges.takeLast(5)
-                            _rangeFetchError.value = foundRanges.isEmpty()
+                            if (foundRanges.isNotEmpty()) {
+                                _liveRanges.value = foundRanges.takeLast(5)
+                                _rangeFetchError.value = false
+                            } else {
+                                _rangeFetchError.value = _liveRanges.value.isEmpty()
+                            }
                         } else {
-                            _liveRanges.value = emptyList()
-                            _rangeFetchError.value = true
+                            _rangeFetchError.value = _liveRanges.value.isEmpty()
                         }
                     } else {
-                        _liveRanges.value = emptyList()
-                        _rangeFetchError.value = true
+                        _rangeFetchError.value = _liveRanges.value.isEmpty()
                     }
                 } else {
-                    _liveRanges.value = emptyList()
-                    _rangeFetchError.value = true
+                    _rangeFetchError.value = _liveRanges.value.isEmpty()
                 }
             }
         } catch (e: Exception) {
             Log.e("InstaProxy", "Failed to fetch live ranges: ${e.message}")
-            if (_liveRanges.value.isEmpty()) {
-                _rangeFetchError.value = true
-            }
+            _rangeFetchError.value = _liveRanges.value.isEmpty()
         }
     }
 
