@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -136,8 +139,60 @@ class MainViewModel : ViewModel() {
     private var otpPollingJob: Job? = null
 
     init {
-        startPolling()
         startRangePolling()
+    }
+
+    fun loadSettings(context: Context) {
+        val sharedPrefs = context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE)
+        val host = sharedPrefs.getString("proxy_host", "change5.owlproxy.com") ?: "change5.owlproxy.com"
+        val port = sharedPrefs.getInt("proxy_port", 7778)
+        
+        _proxyHost.value = host
+        _proxyPort.value = port
+        _proxyRule.value = sharedPrefs.getString("proxy_rule", "$host:$port") ?: "$host:$port"
+        _proxyUsername.value = sharedPrefs.getString("proxy_username", "D6ZBxx2sbG00_custom_zone_SL") ?: "D6ZBxx2sbG00_custom_zone_SL"
+        _proxyPassword.value = sharedPrefs.getString("proxy_password", "4806125") ?: "4806125"
+        
+        val localStatus = sharedPrefs.getString("local_app_status", "ON") ?: "ON"
+        _appStatus.value = localStatus
+    }
+
+    fun saveSettings(
+        context: Context,
+        host: String,
+        port: Int,
+        rule: String,
+        user: String,
+        pass: String,
+        status: String,
+        dbUrl: String
+    ) {
+        val sharedPrefs = context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE)
+        
+        // If rule is empty, use host:port as default
+        val finalRule = if (rule.isBlank()) "$host:$port" else rule
+        
+        sharedPrefs.edit().apply {
+            putString("proxy_host", host)
+            putInt("proxy_port", port)
+            putString("proxy_rule", finalRule)
+            putString("proxy_username", user)
+            putString("proxy_password", pass)
+            putString("local_app_status", status)
+            putString("firebase_db_url", dbUrl)
+            apply()
+        }
+        
+        _proxyHost.value = host
+        _proxyPort.value = port
+        _proxyRule.value = finalRule
+        _proxyUsername.value = user
+        _proxyPassword.value = pass
+        _appStatus.value = status
+        
+        if (_proxyEnabled.value) {
+            applyProxyConfig(context)
+        }
     }
 
     fun toggleProxy(context: Context, enabled: Boolean) {
@@ -222,12 +277,12 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private fun startPolling() {
+    fun startPolling(context: Context) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                // 1. Fetch Pastebin config
-                fetchPastebinConfigDirect()
+                // 1. Fetch Firebase config
+                fetchFirebaseConfigDirect(context)
 
                 // 2. Refresh IP Check
                 _isRefreshingIp.value = true
@@ -262,13 +317,16 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private fun fetchPastebinConfigDirect() {
+    private fun fetchFirebaseConfigDirect(context: Context) {
+        val sharedPrefs = context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE)
+        val dbUrl = sharedPrefs.getString("firebase_db_url", "https://instahub-proxy-default-rtdb.firebaseio.com/config.json") ?: "https://instahub-proxy-default-rtdb.firebaseio.com/config.json"
+        
         val cleanClient = OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(5, TimeUnit.SECONDS)
             .build()
         val request = Request.Builder()
-            .url("https://pastebin.com/raw/PCN8A5dD")
+            .url(dbUrl)
             .build()
         try {
             cleanClient.newCall(request).execute().use { response ->
@@ -284,7 +342,7 @@ class MainViewModel : ViewModel() {
                 }
             }
         } catch (e: Exception) {
-            Log.e("InstaProxy", "Failed to fetch Pastebin config: ${e.message}")
+            Log.e("InstaProxy", "Failed to fetch Firebase config: ${e.message}")
             handleFetchError()
         }
     }
@@ -326,7 +384,7 @@ class MainViewModel : ViewModel() {
     }
 
     private fun handleFetchError() {
-        Log.e("InstaProxy", "Pastebin config fetch failed, keeping current state.")
+        Log.e("InstaProxy", "Firebase config fetch failed, keeping current state.")
     }
 
     private fun checkIpImmediately() {
@@ -854,14 +912,21 @@ fun MainScreen(
     val otpStatus by viewModel.otpStatus.collectAsState()
 
     var showHistoryDialog by remember { mutableStateOf(false) }
+    var showAdminLoginDialog by remember { mutableStateOf(false) }
+    var showAdminPanelDialog by remember { mutableStateOf(false) }
+    var adminPasswordInput by remember { mutableStateOf("") }
+    var showAdminPassword by remember { mutableStateOf(false) }
 
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
 
-
+    LaunchedEffect(context) {
+        viewModel.loadSettings(context)
+        viewModel.startPolling(context)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (appStatus == "OFF") {
-            MaintenanceNoticeScreen()
+            MaintenanceNoticeScreen(onAdminClick = { showAdminLoginDialog = true })
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 // High-fidelity Dashboard Panel
@@ -879,7 +944,8 @@ fun MainScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
                             InstagramLogo(size = 24.dp)
                             Text(
@@ -888,6 +954,22 @@ fun MainScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            // Compact Admin access button
+                            OutlinedButton(
+                                onClick = { showAdminLoginDialog = true },
+                                modifier = Modifier.height(24.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Admin",
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(text = "Admin", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
 
                         Row(
@@ -1329,6 +1411,7 @@ fun MainScreen(
                 }
 
                 // WebView Frame
+                var isWebViewLoading by remember { mutableStateOf(true) }
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -1358,6 +1441,20 @@ fun MainScreen(
                                 cookieManager.setAcceptThirdPartyCookies(this, true)
 
                                 webViewClient = object : WebViewClient() {
+                                    override fun onPageStarted(
+                                        view: WebView?,
+                                        url: String?,
+                                        favicon: android.graphics.Bitmap?
+                                    ) {
+                                        super.onPageStarted(view, url, favicon)
+                                        isWebViewLoading = true
+                                    }
+
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        isWebViewLoading = false
+                                    }
+
                                     override fun onReceivedHttpAuthRequest(
                                         view: WebView?,
                                         handler: HttpAuthHandler?,
@@ -1391,9 +1488,279 @@ fun MainScreen(
                             .fillMaxSize()
                             .testTag("instagram_webview")
                     )
+
+                    if (isWebViewLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(44.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "ইনস্টাগ্রাম পেজ লোড হচ্ছে...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    // Admin Login Dialog
+    if (showAdminLoginDialog) {
+        AlertDialog(
+            onDismissRequest = { showAdminLoginDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Admin Login",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "এডমিন লগইন",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "এডমিন প্যানেলে প্রবেশ করতে পাসওয়ার্ড দিন:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = adminPasswordInput,
+                        onValueChange = { adminPasswordInput = it },
+                        label = { Text("পাসওয়ার্ড") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = if (showAdminPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            val image = if (showAdminPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                            IconButton(onClick = { showAdminPassword = !showAdminPassword }) {
+                                Icon(imageVector = image, contentDescription = "Toggle password visibility")
+                            }
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (adminPasswordInput == "arafat55779911") {
+                            showAdminLoginDialog = false
+                            showAdminPanelDialog = true
+                            adminPasswordInput = ""
+                            Toast.makeText(context, "স্বাগতম এডমিন!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("লগইন")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAdminLoginDialog = false
+                        adminPasswordInput = ""
+                    }
+                ) {
+                    Text("বাতিল")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // Admin Panel Dialog
+    if (showAdminPanelDialog) {
+        val currentHost = viewModel.proxyHost.collectAsState().value
+        val currentPort = viewModel.proxyPort.collectAsState().value
+        val currentRule = viewModel.proxyRule.collectAsState().value
+        val currentUsername = viewModel.proxyUsername.collectAsState().value
+        val currentPassword = viewModel.proxyPassword.collectAsState().value
+        val currentAppStatus = viewModel.appStatus.collectAsState().value
+        
+        val sharedPrefs = remember(context) { context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE) }
+        val currentDbUrl = remember { sharedPrefs.getString("firebase_db_url", "https://instahub-proxy-default-rtdb.firebaseio.com/config.json") ?: "https://instahub-proxy-default-rtdb.firebaseio.com/config.json" }
+
+        var editHost by remember { mutableStateOf(currentHost) }
+        var editPort by remember { mutableStateOf(currentPort.toString()) }
+        var editRule by remember { mutableStateOf(currentRule) }
+        var editUsername by remember { mutableStateOf(currentUsername) }
+        var editPassword by remember { mutableStateOf(currentPassword) }
+        var editAppStatus by remember { mutableStateOf(currentAppStatus == "ON") }
+        var editDbUrl by remember { mutableStateOf(currentDbUrl) }
+
+        AlertDialog(
+            onDismissRequest = { showAdminPanelDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Admin Control Panel",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "এডমিন কন্ট্রোল প্যানেল",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // App Status Switch
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "অ্যাপ স্ট্যাটাস (অন/অফ)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (editAppStatus) "অ্যাপ সচল (ON)" else "আপডেট নোটিশ দেখাবে (OFF)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Switch(
+                            checked = editAppStatus,
+                            onCheckedChange = { editAppStatus = it }
+                        )
+                    }
+
+                    // Firebase Config URL
+                    OutlinedTextField(
+                        value = editDbUrl,
+                        onValueChange = { editDbUrl = it },
+                        label = { Text("Firebase Config REST URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "প্রক্সি কনফিগারেশন",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+
+                    // Host
+                    OutlinedTextField(
+                        value = editHost,
+                        onValueChange = { editHost = it },
+                        label = { Text("Proxy Host") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    // Port
+                    OutlinedTextField(
+                        value = editPort,
+                        onValueChange = { editPort = it },
+                        label = { Text("Proxy Port") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    // Rule
+                    OutlinedTextField(
+                        value = editRule,
+                        onValueChange = { editRule = it },
+                        label = { Text("Proxy Rule (Host:Port)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    // Username
+                    OutlinedTextField(
+                        value = editUsername,
+                        onValueChange = { editUsername = it },
+                        label = { Text("Proxy Username") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    // Password
+                    OutlinedTextField(
+                        value = editPassword,
+                        onValueChange = { editPassword = it },
+                        label = { Text("Proxy Password") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val portInt = editPort.toIntOrNull() ?: 7778
+                        viewModel.saveSettings(
+                            context = context,
+                            host = editHost,
+                            port = portInt,
+                            rule = editRule,
+                            user = editUsername,
+                            pass = editPassword,
+                            status = if (editAppStatus) "ON" else "OFF",
+                            dbUrl = editDbUrl
+                        )
+                        showAdminPanelDialog = false
+                        Toast.makeText(context, "কনফিগারেশন সংরক্ষণ করা হয়েছে!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("সংরক্ষণ করুন")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdminPanelDialog = false }) {
+                    Text("বাতিল")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 
     // Custom Otp History Dialog
@@ -1513,7 +1880,7 @@ fun MainScreen(
 }
 
 @Composable
-fun MaintenanceNoticeScreen() {
+fun MaintenanceNoticeScreen(onAdminClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1559,6 +1926,28 @@ fun MaintenanceNoticeScreen() {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
+        }
+
+        // Admin access button even during update screen
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            OutlinedButton(
+                onClick = onAdminClick,
+                modifier = Modifier.height(28.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Admin",
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(text = "Admin", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
