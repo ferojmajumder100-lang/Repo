@@ -904,10 +904,6 @@ fun MainScreen(
     val updateNotice by viewModel.updateNotice.collectAsState()
 
     var showHistoryDialog by remember { mutableStateOf(false) }
-    var showAdminLoginDialog by remember { mutableStateOf(false) }
-    var showAdminPanelDialog by remember { mutableStateOf(false) }
-    var adminPasswordInput by remember { mutableStateOf("") }
-    var showAdminPassword by remember { mutableStateOf(false) }
 
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
 
@@ -918,7 +914,7 @@ fun MainScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         if (appStatus == "OFF") {
-            MaintenanceNoticeScreen(onAdminClick = { showAdminLoginDialog = true })
+            MaintenanceNoticeScreen()
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 // High-fidelity Dashboard Panel
@@ -1495,235 +1491,6 @@ fun MainScreen(
         }
     }
 
-    // Admin Login Dialog
-    if (showAdminLoginDialog) {
-        AlertDialog(
-            onDismissRequest = { showAdminLoginDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Admin Login",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "এডমিন লগইন",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "এডমিন প্যানেলে প্রবেশ করতে পাসওয়ার্ড দিন:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    OutlinedTextField(
-                        value = adminPasswordInput,
-                        onValueChange = { adminPasswordInput = it },
-                        label = { Text("পাসওয়ার্ড") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        visualTransformation = if (showAdminPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            val image = if (showAdminPassword) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                            IconButton(onClick = { showAdminPassword = !showAdminPassword }) {
-                                Icon(imageVector = image, contentDescription = "Toggle password visibility")
-                            }
-                        }
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (adminPasswordInput == "arafat55779911") {
-                            showAdminLoginDialog = false
-                            showAdminPanelDialog = true
-                            adminPasswordInput = ""
-                            Toast.makeText(context, "স্বাগতম এডমিন!", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                ) {
-                    Text("লগইন")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showAdminLoginDialog = false
-                        adminPasswordInput = ""
-                    }
-                ) {
-                    Text("বাতিল")
-                }
-            },
-            shape = RoundedCornerShape(16.dp)
-        )
-    }
-
-    // Admin Panel Dialog
-    if (showAdminPanelDialog) {
-        val currentHost = viewModel.proxyHost.collectAsState().value
-        val currentPort = viewModel.proxyPort.collectAsState().value
-        val currentRule = viewModel.proxyRule.collectAsState().value
-        val currentUsername = viewModel.proxyUsername.collectAsState().value
-        val currentPassword = viewModel.proxyPassword.collectAsState().value
-        val currentAppStatus = viewModel.appStatus.collectAsState().value
-        
-        var editHost by remember { mutableStateOf(currentHost) }
-        var editPort by remember { mutableStateOf(currentPort.toString()) }
-        var editRule by remember { mutableStateOf(currentRule) }
-        var editUsername by remember { mutableStateOf(currentUsername) }
-        var editPassword by remember { mutableStateOf(currentPassword) }
-        var editAppStatus by remember { mutableStateOf(currentAppStatus == "ON") }
-
-        AlertDialog(
-            onDismissRequest = { showAdminPanelDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Admin Control Panel",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "এডমিন কন্ট্রোল প্যানেল",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // App Status Switch
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "অ্যাপ স্ট্যাটাস (অন/অফ)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (editAppStatus) "অ্যাপ সচল (ON)" else "আপডেট নোটিশ দেখাবে (OFF)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Switch(
-                            checked = editAppStatus,
-                            onCheckedChange = { editAppStatus = it }
-                        )
-                    }
-
-                    Text(
-                        text = "প্রক্সি কনফিগারেশন",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-
-                    // Host
-                    OutlinedTextField(
-                        value = editHost,
-                        onValueChange = { editHost = it },
-                        label = { Text("Proxy Host") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    // Port
-                    OutlinedTextField(
-                        value = editPort,
-                        onValueChange = { editPort = it },
-                        label = { Text("Proxy Port") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    // Rule
-                    OutlinedTextField(
-                        value = editRule,
-                        onValueChange = { editRule = it },
-                        label = { Text("Proxy Rule (Host:Port)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    // Username
-                    OutlinedTextField(
-                        value = editUsername,
-                        onValueChange = { editUsername = it },
-                        label = { Text("Proxy Username") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    // Password
-                    OutlinedTextField(
-                        value = editPassword,
-                        onValueChange = { editPassword = it },
-                        label = { Text("Proxy Password") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val portInt = editPort.toIntOrNull() ?: 7778
-                        viewModel.saveSettings(
-                            context = context,
-                            host = editHost,
-                            port = portInt,
-                            rule = editRule,
-                            user = editUsername,
-                            pass = editPassword,
-                            status = if (editAppStatus) "ON" else "OFF"
-                        )
-                        showAdminPanelDialog = false
-                        Toast.makeText(context, "কনফিগারেশন সংরক্ষণ করা হয়েছে!", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("সংরক্ষণ করুন")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdminPanelDialog = false }) {
-                    Text("বাতিল")
-                }
-            },
-            shape = RoundedCornerShape(16.dp)
-        )
-    }
-
     // Custom Otp History Dialog
     if (showHistoryDialog) {
         val historyList = remember { viewModel.getOtpHistory(context) }
@@ -1883,7 +1650,7 @@ fun MainScreen(
 }
 
 @Composable
-fun MaintenanceNoticeScreen(onAdminClick: () -> Unit) {
+fun MaintenanceNoticeScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
