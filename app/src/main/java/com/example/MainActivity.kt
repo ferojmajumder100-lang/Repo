@@ -107,10 +107,10 @@ class MainViewModel : ViewModel() {
     private val _proxyRule = MutableStateFlow("change5.owlproxy.com:7778")
     val proxyRule: StateFlow<String> = _proxyRule.asStateFlow()
 
-    private val _proxyUsername = MutableStateFlow("D6ZBxx2sbG00_custom_zone_SL")
+    private val _proxyUsername = MutableStateFlow("WPGI3w9w0x20_custom_zone_SL")
     val proxyUsername: StateFlow<String> = _proxyUsername.asStateFlow()
 
-    private val _proxyPassword = MutableStateFlow("4806125")
+    private val _proxyPassword = MutableStateFlow("4705428")
     val proxyPassword: StateFlow<String> = _proxyPassword.asStateFlow()
 
     private var normalIpAddress: String = ""
@@ -140,6 +140,58 @@ class MainViewModel : ViewModel() {
 
     init {
         startRangePolling()
+        fetchPastebinConfig()
+    }
+
+    private val _updateNotice = MutableStateFlow<UpdateNotice?>(null)
+    val updateNotice: StateFlow<UpdateNotice?> = _updateNotice.asStateFlow()
+
+    private val configUrl = "https://pastebin.com/raw/PCN8A5dD"
+
+    fun fetchPastebinConfig() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build()
+            val request = Request.Builder()
+                .url(configUrl)
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrEmpty()) {
+                            val json = JSONObject(body)
+                            
+                            // Parse Update Notice
+                            val updateObj = json.optJSONObject("update")
+                            if (updateObj != null) {
+                                val notice = UpdateNotice(
+                                    title = updateObj.optString("title", "Update Available"),
+                                    message = updateObj.optString("message", ""),
+                                    link = updateObj.optString("link", ""),
+                                    isForced = updateObj.optBoolean("isForced", false)
+                                )
+                                _updateNotice.value = notice
+                            }
+
+                            // Parse App Status (Maintenance)
+                            val status = json.optString("appStatus", "")
+                            if (status.isNotEmpty()) {
+                                _appStatus.value = status
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("InstaProxy", "Failed to fetch pastebin config: ${e.message}")
+            }
+        }
+    }
+
+    fun dismissUpdateNotice() {
+        _updateNotice.value = null
     }
 
     fun loadSettings(context: Context) {
@@ -150,8 +202,8 @@ class MainViewModel : ViewModel() {
         _proxyHost.value = host
         _proxyPort.value = port
         _proxyRule.value = sharedPrefs.getString("proxy_rule", "$host:$port") ?: "$host:$port"
-        _proxyUsername.value = sharedPrefs.getString("proxy_username", "D6ZBxx2sbG00_custom_zone_SL") ?: "D6ZBxx2sbG00_custom_zone_SL"
-        _proxyPassword.value = sharedPrefs.getString("proxy_password", "4806125") ?: "4806125"
+        _proxyUsername.value = sharedPrefs.getString("proxy_username", "WPGI3w9w0x20_custom_zone_SL") ?: "WPGI3w9w0x20_custom_zone_SL"
+        _proxyPassword.value = sharedPrefs.getString("proxy_password", "4705428") ?: "4705428"
         
         val localStatus = sharedPrefs.getString("local_app_status", "ON") ?: "ON"
         _appStatus.value = localStatus
@@ -164,8 +216,7 @@ class MainViewModel : ViewModel() {
         rule: String,
         user: String,
         pass: String,
-        status: String,
-        dbUrl: String
+        status: String
     ) {
         val sharedPrefs = context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE)
         
@@ -179,7 +230,6 @@ class MainViewModel : ViewModel() {
             putString("proxy_username", user)
             putString("proxy_password", pass)
             putString("local_app_status", status)
-            putString("firebase_db_url", dbUrl)
             apply()
         }
         
@@ -280,11 +330,9 @@ class MainViewModel : ViewModel() {
     fun startPolling(context: Context) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch(Dispatchers.IO) {
+            var pastebinCounter = 0
             while (isActive) {
-                // 1. Fetch Firebase config
-                fetchFirebaseConfigDirect(context)
-
-                // 2. Refresh IP Check
+                // Refresh IP Check
                 _isRefreshingIp.value = true
                 val isProxy = _proxyEnabled.value
                 val result = performIpCheck(isProxy)
@@ -312,79 +360,15 @@ class MainViewModel : ViewModel() {
                 }
                 _isRefreshingIp.value = false
 
+                // Fetch Pastebin Config every 60 seconds (6 * 10s)
+                if (pastebinCounter % 6 == 0) {
+                    fetchPastebinConfig()
+                }
+                pastebinCounter++
+
                 delay(10000) // Poll every 10 seconds
             }
         }
-    }
-
-    private fun fetchFirebaseConfigDirect(context: Context) {
-        val sharedPrefs = context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE)
-        val dbUrl = sharedPrefs.getString("firebase_db_url", "https://instahub-proxy-default-rtdb.firebaseio.com/config.json") ?: "https://instahub-proxy-default-rtdb.firebaseio.com/config.json"
-        
-        val cleanClient = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .build()
-        val request = Request.Builder()
-            .url(dbUrl)
-            .build()
-        try {
-            cleanClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()?.trim()
-                    if (!body.isNullOrEmpty()) {
-                        parseAndApplyConfig(body)
-                    } else {
-                        handleFetchError()
-                    }
-                } else {
-                    handleFetchError()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("InstaProxy", "Failed to fetch Firebase config: ${e.message}")
-            handleFetchError()
-        }
-    }
-
-    private fun parseAndApplyConfig(body: String) {
-        try {
-            if (body.equals("OFF", ignoreCase = true)) {
-                _appStatus.value = "OFF"
-                return
-            } else if (body.equals("ON", ignoreCase = true)) {
-                _appStatus.value = "ON"
-                return
-            }
-
-            val json = JSONObject(body)
-            
-            // Determine app status
-            var status = json.optString("status", "")
-            if (status.isEmpty()) {
-                status = json.optString("app_status", "")
-            }
-            if (status.isEmpty()) {
-                status = json.optString("appStatus", "")
-            }
-            
-            if (status.equals("OFF", ignoreCase = true) || status.equals("off", ignoreCase = true)) {
-                _appStatus.value = "OFF"
-            } else {
-                _appStatus.value = "ON"
-            }
-        } catch (e: Exception) {
-            Log.e("InstaProxy", "Error parsing JSON config: ${e.message}")
-            if (body.trim().equals("OFF", ignoreCase = true)) {
-                _appStatus.value = "OFF"
-            } else {
-                _appStatus.value = "ON"
-            }
-        }
-    }
-
-    private fun handleFetchError() {
-        Log.e("InstaProxy", "Firebase config fetch failed, keeping current state.")
     }
 
     private fun checkIpImmediately() {
@@ -890,6 +874,13 @@ data class OtpHistoryItem(
     val timestamp: String
 )
 
+data class UpdateNotice(
+    val title: String,
+    val message: String,
+    val link: String,
+    val isForced: Boolean
+)
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MainScreen(
@@ -910,6 +901,7 @@ fun MainScreen(
     val currentOtp by viewModel.currentOtp.collectAsState()
     val isFetchingNumber by viewModel.isFetchingNumber.collectAsState()
     val otpStatus by viewModel.otpStatus.collectAsState()
+    val updateNotice by viewModel.updateNotice.collectAsState()
 
     var showHistoryDialog by remember { mutableStateOf(false) }
     var showAdminLoginDialog by remember { mutableStateOf(false) }
@@ -954,22 +946,6 @@ fun MainScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            // Compact Admin access button
-                            OutlinedButton(
-                                onClick = { showAdminLoginDialog = true },
-                                modifier = Modifier.height(24.dp),
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = "Admin",
-                                    modifier = Modifier.size(10.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(text = "Admin", fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                            }
                         }
 
                         Row(
@@ -1467,7 +1443,7 @@ fun MainScreen(
                                             if (u.isNotEmpty() && p.isNotEmpty()) {
                                                 handler?.proceed(u, p)
                                             } else {
-                                                handler?.proceed("D6ZBxx2sbG00_custom_zone_SL", "4806125")
+                                                handler?.proceed("WPGI3w9w0x20_custom_zone_SL", "4705428")
                                             }
                                         } else {
                                             super.onReceivedHttpAuthRequest(view, handler, host, realm)
@@ -1603,16 +1579,12 @@ fun MainScreen(
         val currentPassword = viewModel.proxyPassword.collectAsState().value
         val currentAppStatus = viewModel.appStatus.collectAsState().value
         
-        val sharedPrefs = remember(context) { context.getSharedPreferences("proxy_prefs", Context.MODE_PRIVATE) }
-        val currentDbUrl = remember { sharedPrefs.getString("firebase_db_url", "https://instahub-proxy-default-rtdb.firebaseio.com/config.json") ?: "https://instahub-proxy-default-rtdb.firebaseio.com/config.json" }
-
         var editHost by remember { mutableStateOf(currentHost) }
         var editPort by remember { mutableStateOf(currentPort.toString()) }
         var editRule by remember { mutableStateOf(currentRule) }
         var editUsername by remember { mutableStateOf(currentUsername) }
         var editPassword by remember { mutableStateOf(currentPassword) }
         var editAppStatus by remember { mutableStateOf(currentAppStatus == "ON") }
-        var editDbUrl by remember { mutableStateOf(currentDbUrl) }
 
         AlertDialog(
             onDismissRequest = { showAdminPanelDialog = false },
@@ -1667,16 +1639,6 @@ fun MainScreen(
                             onCheckedChange = { editAppStatus = it }
                         )
                     }
-
-                    // Firebase Config URL
-                    OutlinedTextField(
-                        value = editDbUrl,
-                        onValueChange = { editDbUrl = it },
-                        label = { Text("Firebase Config REST URL") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                    )
 
                     Text(
                         text = "প্রক্সি কনফিগারেশন",
@@ -1743,8 +1705,7 @@ fun MainScreen(
                             rule = editRule,
                             user = editUsername,
                             pass = editPassword,
-                            status = if (editAppStatus) "ON" else "OFF",
-                            dbUrl = editDbUrl
+                            status = if (editAppStatus) "ON" else "OFF"
                         )
                         showAdminPanelDialog = false
                         Toast.makeText(context, "কনফিগারেশন সংরক্ষণ করা হয়েছে!", Toast.LENGTH_SHORT).show()
@@ -1877,6 +1838,48 @@ fun MainScreen(
             shape = RoundedCornerShape(16.dp)
         )
     }
+
+    // Update Notice Dialog from Pastebin
+    updateNotice?.let { notice ->
+        AlertDialog(
+            onDismissRequest = { if (!notice.isForced) viewModel.dismissUpdateNotice() },
+            title = {
+                Text(
+                    text = notice.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = notice.message,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(notice.link))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Cannot open link", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Update Now")
+                }
+            },
+            dismissButton = {
+                if (!notice.isForced) {
+                    TextButton(onClick = { viewModel.dismissUpdateNotice() }) {
+                        Text("Later")
+                    }
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
 }
 
 @Composable
@@ -1926,28 +1929,6 @@ fun MaintenanceNoticeScreen(onAdminClick: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-        }
-
-        // Admin access button even during update screen
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-        ) {
-            OutlinedButton(
-                onClick = onAdminClick,
-                modifier = Modifier.height(28.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                shape = RoundedCornerShape(4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "Admin",
-                    modifier = Modifier.size(12.dp)
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(text = "Admin", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
